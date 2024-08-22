@@ -3,7 +3,7 @@ import Epub from 'epubjs';
 
 const book = Epub("book.epub");
 const rendition = book.renderTo("app", {
-    manager: "default",
+    method: "default",
     width: "100vw",
     height: "100vh",
 });
