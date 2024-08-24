@@ -4,29 +4,30 @@ export class ReaderApi {
     constructor() {
         this.book = Epub("book.epub");
         this.rendition = this.book.renderTo("app", {
-            method: "default",
             width: "100vw",
             height: "100vh",
         });
     }
 
-    main(cfi) {
+    main(destination) {
         this.book.ready.then(() => {
+            return this.book.locations.generate(1600);
+        }).then(() => {
             /**
              * Sends the location information to the server after the page is relocated.
              */
             this.rendition.on('relocated', (location) => {
+                console.log(location.start.cfi);
                 this.sendToServer('/setState', JSON.stringify({
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
                     startCfi: location.start.cfi,
-                    endCfi: location.end.cfi,
                     localCurrent: location.start.displayed.page,
                     localTotal: location.start.displayed.total,
                 }));
             });
 
-            return this.goToCfi(cfi);
+            return this.goto(destination);
         }).then(() => {
             this.sendToServer('/loadDone');
         });
@@ -49,12 +50,12 @@ export class ReaderApi {
     };
 
     /**
-     * Navigates to the given CFI.
-     * @param {string} cfi The CFI to navigate to.
+     * Navigates to target position (Cfi, percentage, or href are accepted).
+     * @param {*} destination
      * @returns {Promise<void>}
      */
-    goToCfi(cfi) {
-        return this.rendition.display(cfi);
+    goto(destination) {
+        return this.rendition.display(destination);
     }
 
     /**
