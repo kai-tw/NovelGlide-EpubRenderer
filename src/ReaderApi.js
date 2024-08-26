@@ -9,6 +9,10 @@ export class ReaderApi {
         });
     }
 
+    /**
+     * The entry point of the reader.
+     * @param destination
+     */
     main(destination) {
         this.book.ready.then(() => {
             return this.book.locations.generate(1600);
@@ -17,7 +21,6 @@ export class ReaderApi {
              * Sends the location information to the server after the page is relocated.
              */
             this.rendition.on('relocated', (location) => {
-                console.log(location.start.cfi);
                 this.sendToServer('/setState', JSON.stringify({
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
@@ -65,6 +68,36 @@ export class ReaderApi {
     setThemeData(themeData) {
         this.rendition.themes.default(themeData);
     };
+
+    search(q) {
+        return Promise.all(
+            this.book.spine.spineItems.map((item) => {
+                return item.load(this.book.load.bind(this.book))
+                    .then(item.find.bind(item, q))
+                    .finally(item.unload.bind(item));
+            })
+        ).then((resultList) => {
+            const result = [].concat.apply([], resultList);
+            this.sendToServer('/setState', JSON.stringify({
+                searchResultList: result,
+            }));
+            return Promise.resolve(result);
+        });
+    }
+
+    searchInCurrentChapter(q) {
+        const item = this.book.spine.get(this.rendition.location.start.cfi);
+        return item.load(this.book.load.bind(this.book))
+            .then(item.find.bind(item, q))
+            .finally(item.unload.bind(item))
+            .then((resultList) => {
+                const result = [].concat.apply([], resultList);
+                this.sendToServer('/setState', JSON.stringify({
+                    searchResultList: result,
+                }));
+                return Promise.resolve(result);
+            });
+    }
 
     /**
      * Sends the data to the server.
