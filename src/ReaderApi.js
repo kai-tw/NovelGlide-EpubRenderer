@@ -15,8 +15,6 @@ export class ReaderApi {
      */
     main(destination) {
         this.book.ready.then(() => {
-            return this.book.locations.generate(1600);
-        }).then(() => {
             /**
              * Sends the location information to the server after the page is relocated.
              */
