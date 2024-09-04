@@ -98,6 +98,14 @@ export class ReaderApi {
     }
 
     /**
+     * Sets the auth token.
+     * @param {string} token The auth token.
+     */
+    setAuthToken(token) {
+        this._authToken = token;
+    }
+
+    /**
      * Sends the data to the server.
      * @param {string} url The url to send the data to.
      * @param {string} data The data to send.
@@ -106,6 +114,7 @@ export class ReaderApi {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', url, true);
         xhr.setRequestHeader('Content-Type', 'application/json; charset=utf-8');
+        xhr.setRequestHeader('Authorization', 'Bearer ' + this._authToken);
         xhr.send(data);
     }
 }
