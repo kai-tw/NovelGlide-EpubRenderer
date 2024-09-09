@@ -15,6 +15,12 @@ export class ReaderApi {
      */
     main(destination) {
         this.book.ready.then(() => {
+            let promises = [];
+            this.book.spine.each((section) => {
+                promises.push(this.book.locations.process(section));
+            });
+            return Promise.all(promises);
+        }).then(() => {
             /**
              * Sends the location information to the server after the page is relocated.
              */
@@ -23,6 +29,7 @@ export class ReaderApi {
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
                     startCfi: location.start.cfi,
+                    href: location.start.href,
                     localCurrent: location.start.displayed.page,
                     localTotal: location.start.displayed.total,
                 }));
