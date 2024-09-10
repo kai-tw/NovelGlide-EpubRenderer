@@ -30,6 +30,7 @@ export class ReaderApi {
                     atEnd: location.atEnd ?? false,
                     startCfi: location.start.cfi,
                     href: location.start.href,
+                    isRtl: this.book.packaging.metadata.direction === 'rtl',
                     localCurrent: location.start.displayed.page,
                     localTotal: location.start.displayed.total,
                 }));
