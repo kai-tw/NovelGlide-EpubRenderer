@@ -25,7 +25,7 @@ export class ReaderApi {
              * Sends the location information to the server after the page is relocated.
              */
             this.rendition.on('relocated', (location) => {
-                this.sendToServer('/setState', JSON.stringify({
+                this.sendToApp('setState', {
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
                     startCfi: location.start.cfi,
@@ -33,12 +33,12 @@ export class ReaderApi {
                     isRtl: this.book.packaging.metadata.direction === 'rtl',
                     localCurrent: location.start.displayed.page,
                     localTotal: location.start.displayed.total,
-                }));
+                });
             });
 
             return this.goto(destination);
         }).then(() => {
-            this.sendToServer('/loadDone');
+            this.sendToApp('loadDone');
         });
     }
 
@@ -84,9 +84,9 @@ export class ReaderApi {
             })
         ).then((resultList) => {
             const result = [].concat.apply([], resultList);
-            this.sendToServer('/setState', JSON.stringify({
+            this.sendToApp('setState', {
                 searchResultList: result,
-            }));
+            });
             return Promise.resolve(result);
         });
     }
@@ -98,31 +98,31 @@ export class ReaderApi {
             .finally(item.unload.bind(item))
             .then((resultList) => {
                 const result = [].concat.apply([], resultList);
-                this.sendToServer('/setState', JSON.stringify({
+                this.sendToApp('setState', {
                     searchResultList: result,
-                }));
+                });
                 return Promise.resolve(result);
             });
     }
 
     /**
-     * Sets the auth token.
-     * @param {string} token The auth token.
+     * Set the JavaScript Channel.
      */
-    setAuthToken(token) {
-        this._authToken = token;
+    setAppApi() {
+        this._appApi = window.appApi ?? {};
     }
 
     /**
      * Sends the data to the server.
-     * @param {string} url The url to send the data to.
+     * @param {string} route The route to send the data to.
      * @param {string} data The data to send.
      */
-    sendToServer(url, data = '') {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', url, true);
-        xhr.setRequestHeader('Content-Type', 'application/json; charset=utf-8');
-        xhr.setRequestHeader('Authorization', 'Bearer ' + this._authToken);
-        xhr.send(data);
+    sendToApp(route, data = {}) {
+        if (this._appApi) {
+            this._appApi.postMessage(JSON.stringify({
+                route: route,
+                data: data,
+            }));
+        }
     }
 }
