@@ -15,19 +15,53 @@ module.exports = {
     output: {
         path: path.resolve(__dirname, 'dist'),
         filename: 'index.js',
+        environment: {
+            arrowFunction: false,
+            bigIntLiteral: false,
+            const: false,
+            destructuring: false,
+            dynamicImport: false,
+            forOf: false,
+            module: false,
+        },
     },
+    target: ['web', 'es5'],
     module: {
         rules: [
             {
                 test: /\.(s[ac])|(c)ss$/i,
                 use: [MiniCssExtractPlugin.loader, "css-loader", "sass-loader"]
+            },
+            {
+                test: /\.js$/,
+                use: [
+                    {
+                        loader: 'babel-loader',
+                        options: {
+                            presets: [
+                                [
+                                    '@babel/preset-env',
+                                    {
+                                        useBuiltIns: 'usage',
+                                        modules: false,
+                                        corejs: 3,
+                                    },
+                                ],
+                            ],
+                            include: [
+                                path.resolve('src/'),
+                                path.resolve('node_modules/epubjs/'),
+                            ],
+                        },
+                    }
+                ]
             }
         ],
     },
     plugins: [
         new CopyWebpackPlugin({
             patterns: [
-                { from: 'book.epub', to: 'book.epub' }
+                {from: 'book.epub', to: 'book.epub'}
             ]
         }),
         new HtmlWebpackPlugin({
