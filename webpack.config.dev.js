@@ -1,9 +1,10 @@
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const path = require('path');
 
 module.exports = {
-    mode: 'production',
+    mode: 'development',
     context: path.resolve(__dirname, 'src'),
     entry: './index.js',
     resolve: {
@@ -58,6 +59,11 @@ module.exports = {
         ],
     },
     plugins: [
+        new CopyWebpackPlugin({
+            patterns: [
+                { from: 'book.epub', to: 'book.epub' }
+            ]
+        }),
         new HtmlWebpackPlugin({
             title: 'NovelGlide',
             filename: 'index.html',
