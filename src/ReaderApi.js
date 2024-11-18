@@ -15,6 +15,7 @@ export class ReaderApi {
      */
     main(destination) {
         this.book.ready.then(() => {
+            this.book.locations.break = 10;
             let promises = [];
             this.book.spine.each((section) => {
                 promises.push(this.book.locations.process(section));
@@ -25,12 +26,15 @@ export class ReaderApi {
              * Sends the location information to the server after the page is relocated.
              */
             this.rendition.on('relocated', (location) => {
+                const tocIndex = this.book.navigation.tocByHref[location.start.href];
+                const chapterTitle = this.book.navigation.toc[tocIndex]?.label.trim();
                 const isRtl = this._isRtl = this.book.packaging.metadata.direction === 'rtl';
                 this._sendToApp('setState', {
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
                     startCfi: location.start.cfi,
-                    href: location.start.href,
+                    chapterTitle: chapterTitle,
+                    chapterFileName: location.start.href,
                     isRtl: isRtl,
                     localCurrent: location.start.displayed.page,
                     localTotal: location.start.displayed.total,
