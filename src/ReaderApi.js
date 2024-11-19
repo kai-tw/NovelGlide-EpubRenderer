@@ -11,20 +11,34 @@ export class ReaderApi {
 
     /**
      * The entry point of the reader.
-     * @param destination
+     * @param {String | null} destination
+     * @param {String | null} savedLocation
      */
-    main(destination) {
+    main(destination, savedLocation) {
         this.book.ready.then(() => {
             this.book.locations.break = 10;
+
+            // Load the saved locations.
+            if (!!savedLocation) {
+                this._sendToApp('log', 'Loading saved locations');
+                this.book.locations.load(savedLocation);
+                return Promise.resolve([]);
+            }
+
+            // Generate the locations
+            this._sendToApp('log', 'Generating locations');
             let promises = [];
             this.book.spine.each((section) => {
                 promises.push(this.book.locations.process(section));
             });
             return Promise.all(promises);
-        }).then(() => {
-            /**
-             * Sends the location information to the server after the page is relocated.
-             */
+        }).then((locationList) => {
+            if (!savedLocation) {
+                // Send the list of locations.
+                this._sendToApp('saveLocation', JSON.stringify(locationList.flat()));
+            }
+
+            // Send the location information to the server after the page is relocated.
             this.rendition.on('relocated', (location) => {
                 const tocIndex = this.book.navigation.tocByHref[location.start.href];
                 const chapterTitle = this.book.navigation.toc[tocIndex]?.label.trim();
