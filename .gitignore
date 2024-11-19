@@ -1,3 +1,4 @@
 node_modules
 dist
 src/book.epub
+src/.DS_Store

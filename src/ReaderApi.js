@@ -40,14 +40,13 @@ export class ReaderApi {
 
             // Send the location information to the server after the page is relocated.
             this.rendition.on('relocated', (location) => {
-                const tocIndex = this.book.navigation.tocByHref[location.start.href];
-                const chapterTitle = this.book.navigation.toc[tocIndex]?.label.trim();
+                const breadcrumb = this._getBreadcrumb(this.book.navigation.toc, location.start.href);
                 const isRtl = this._isRtl = this.book.packaging.metadata.direction === 'rtl';
                 this._sendToApp('setState', {
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
                     startCfi: location.start.cfi,
-                    chapterTitle: chapterTitle,
+                    breadcrumb: breadcrumb,
                     chapterFileName: location.start.href,
                     isRtl: isRtl,
                     localCurrent: location.start.displayed.page,
@@ -157,13 +156,41 @@ export class ReaderApi {
      * @param {string} data The data to send.
      * @private
      */
-    _sendToApp(route, data = {}) {
+    _sendToApp(route, data = "") {
         if (this._appApi) {
             this._appApi.postMessage(JSON.stringify({
                 route: route,
                 data: data,
             }));
+        } else {
+            console.log(route, data);
         }
+    }
+
+    /**
+     * Get the breadcrumb by DFS.
+     * @param {Array} chapterList The chapter list.
+     * @param {String} href The chapter href.
+     * @private
+     */
+    _getBreadcrumb(chapterList, href) {
+        return this._getBreadcrumbHelper(chapterList, href);
+    }
+
+    _getBreadcrumbHelper(chapterList, href, breadcrumb = [], level = 0) {
+        for (let i = 0; i < chapterList.length; i++) {
+            breadcrumb[level] = chapterList[i].label.trim();
+
+            if (chapterList[i].href === href) {
+                return breadcrumb.join(' > ');
+            }
+
+            const result = this._getBreadcrumbHelper(chapterList[i].subitems, href, breadcrumb, level + 1);
+            if (!!result) {
+                return result;
+            }
+        }
+        return null;
     }
 
     /**
