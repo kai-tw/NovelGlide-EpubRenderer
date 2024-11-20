@@ -16,7 +16,7 @@ export class ReaderApi {
      */
     main(destination, savedLocation) {
         this.book.ready.then(() => {
-            this.book.locations.break = 10;
+            // this.book.locations.break = 10;
 
             // Load the saved locations.
             if (!!savedLocation) {
@@ -199,7 +199,6 @@ export class ReaderApi {
      * @private
      */
     _keyEventHandler(e) {
-        e.preventDefault();
         switch (e.code) {
             case 'ArrowLeft':
                 this._isRtl ? this.nextPage() : this.prevPage();

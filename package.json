@@ -5,7 +5,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "webpack --config webpack.config.js",
-    "dev": "webpack-dev-server --config webpack.config.dev.js"
+    "dev": "webpack-dev-server --config webpack.config.dev.js",
+    "dev_local_only": "webpack-dev-server --config webpack.config.dev.js --host 127.0.0.1"
   },
   "keywords": [],
   "author": "",
