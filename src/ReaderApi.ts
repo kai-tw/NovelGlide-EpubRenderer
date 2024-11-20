@@ -1,6 +1,5 @@
 import Epub, {Book, Location, Rendition} from 'epubjs';
-import Section, {SpineItem} from "epubjs/types/section";
-import Spine from "epubjs/types/spine";
+import Section from "epubjs/types/section";
 
 declare global {
     interface Window {
@@ -43,10 +42,10 @@ export class ReaderApi {
                 promises.push(this.book.locations.process(section));
             });
             return Promise.all(promises);
-        }).then((locationList) => {
+        }).then((_) => {
             if (!savedLocation) {
                 // Send the list of locations.
-                this._sendToApp('saveLocation', JSON.stringify(locationList.flat()));
+                this._sendToApp('saveLocation', this.book.locations.save());
             }
 
             // Send the location information to the server after the page is relocated.
@@ -118,7 +117,7 @@ export class ReaderApi {
     /**
      * Search in the whole book.
      * @param {string} q The query string.
-     * @returns {Promise}
+     * @returns {Promise<any>}
      */
     searchInWholeBook(q: string): Promise<any> {
         const promiseList: Array<Promise<any>> = [];
