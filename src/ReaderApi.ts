@@ -1,6 +1,19 @@
-import Epub from 'epubjs';
+import Epub, {Book, Location, Rendition} from 'epubjs';
+import Section, {SpineItem} from "epubjs/types/section";
+import Spine from "epubjs/types/spine";
+
+declare global {
+    interface Window {
+        appApi: any;
+    }
+}
 
 export class ReaderApi {
+    private book: Book;
+    private rendition: Rendition;
+    private appApi: any;
+    private isRtl: boolean;
+
     constructor() {
         this.book = Epub("book.epub");
         this.rendition = this.book.renderTo("app", {
@@ -11,24 +24,22 @@ export class ReaderApi {
 
     /**
      * The entry point of the reader.
-     * @param {String | null} destination
-     * @param {String | null} savedLocation
+     * @param {string | null} destination
+     * @param {string | null} savedLocation
      */
-    main(destination, savedLocation) {
+    main(destination: string | null, savedLocation: string | null): void {
         this.book.ready.then(() => {
             // this.book.locations.break = 10;
 
             // Load the saved locations.
             if (!!savedLocation) {
-                this._sendToApp('log', 'Loading saved locations');
-                this.book.locations.load(savedLocation);
+                this.book.locations.load(savedLocation as string);
                 return Promise.resolve([]);
             }
 
             // Generate the locations
-            this._sendToApp('log', 'Generating locations');
-            let promises = [];
-            this.book.spine.each((section) => {
+            let promises: Promise<any>[] = [];
+            this.book.spine.each((section: Section) => {
                 promises.push(this.book.locations.process(section));
             });
             return Promise.all(promises);
@@ -39,9 +50,9 @@ export class ReaderApi {
             }
 
             // Send the location information to the server after the page is relocated.
-            this.rendition.on('relocated', (location) => {
-                const breadcrumb = this._getBreadcrumb(this.book.navigation.toc, location.start.href);
-                const isRtl = this._isRtl = this.book.packaging.metadata.direction === 'rtl';
+            this.rendition.on('relocated', (location: Location) => {
+                const breadcrumb: string = this._getBreadcrumb(this.book.navigation.toc, location.start.href);
+                const isRtl: boolean = this.isRtl = this.book.packaging.metadata.direction === 'rtl';
                 this._sendToApp('setState', {
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
@@ -52,6 +63,7 @@ export class ReaderApi {
                     localCurrent: location.start.displayed.page,
                     localTotal: location.start.displayed.total,
                 });
+                document.getElementById('page-num').innerText = `${location.start.displayed.page} / ${location.start.displayed.total}`;
             });
 
             return this.goto(destination);
@@ -74,7 +86,7 @@ export class ReaderApi {
      * Navigates to the previous page.
      * @returns {Promise<void>}
      */
-    prevPage() {
+    prevPage(): Promise<void> {
         return this.rendition.prev();
     };
 
@@ -82,16 +94,16 @@ export class ReaderApi {
      * Navigates to the next page.
      * @returns {Promise<void>}
      */
-    nextPage() {
+    nextPage(): Promise<void> {
         return this.rendition.next();
     };
 
     /**
      * Navigates to target position (Cfi, percentage, or href are accepted).
-     * @param {*} destination
+     * @param {string} destination
      * @returns {Promise<void>}
      */
-    goto(destination) {
+    goto(destination: string): Promise<void> {
         return this.rendition.display(destination);
     }
 
@@ -99,7 +111,7 @@ export class ReaderApi {
      * Sets the theme.
      * @param {object} themeData The theme JSON data.
      */
-    setThemeData(themeData) {
+    setThemeData(themeData: object): void {
         this.rendition.themes.default(themeData);
     };
 
@@ -108,14 +120,14 @@ export class ReaderApi {
      * @param {string} q The query string.
      * @returns {Promise}
      */
-    searchInWholeBook(q) {
-        return Promise.all(
-            this.book.spine.spineItems.map((item) => {
-                return item.load(this.book.load.bind(this.book))
-                    .then(item.find.bind(item, q))
-                    .finally(item.unload.bind(item));
-            })
-        ).then((resultList) => {
+    searchInWholeBook(q: string): Promise<any> {
+        const promiseList: Array<Promise<any>> = [];
+        this.book.spine.each((item: any) => {
+            promiseList.push(item.load(this.book.load.bind(this.book))
+                .then(item.find.bind(item, q))
+                .finally(item.unload.bind(item)));
+        });
+        return Promise.all(promiseList).then((resultList) => {
             const result = [].concat.apply([], resultList);
             this._sendToApp('setState', {
                 searchResultList: result,
@@ -127,38 +139,30 @@ export class ReaderApi {
     /**
      * Search in the current chapter.
      * @param {string} q The query string.
-     * @returns {Promise}
      */
-    searchInCurrentChapter(q) {
+    searchInCurrentChapter(q: string): void {
         const item = this.book.spine.get(this.rendition.location.start.cfi);
-        return item.load(this.book.load.bind(this.book))
-            .then(item.find.bind(item, q))
-            .finally(item.unload.bind(item))
-            .then((resultList) => {
-                const result = [].concat.apply([], resultList);
-                this._sendToApp('setState', {
-                    searchResultList: result,
-                });
-                return Promise.resolve(result);
-            });
+        this._sendToApp('setState', {
+            searchResultList: item.find(q),
+        });
     }
 
     /**
      * Set the JavaScript Channel.
      */
     setAppApi() {
-        this._appApi = window.appApi ?? {};
+        this.appApi = window.appApi ?? {};
     }
 
     /**
      * Sends the data to the server.
      * @param {string} route The route to send the data to.
-     * @param {string} data The data to send.
+     * @param {any} data The data to send.
      * @private
      */
-    _sendToApp(route, data = "") {
-        if (this._appApi) {
-            this._appApi.postMessage(JSON.stringify({
+    _sendToApp(route: string, data: any = ""): void {
+        if (this.appApi) {
+            this.appApi.postMessage(JSON.stringify({
                 route: route,
                 data: data,
             }));
@@ -173,11 +177,11 @@ export class ReaderApi {
      * @param {String} href The chapter href.
      * @private
      */
-    _getBreadcrumb(chapterList, href) {
+    _getBreadcrumb(chapterList: Array<any>, href: string): string {
         return this._getBreadcrumbHelper(chapterList, href);
     }
 
-    _getBreadcrumbHelper(chapterList, href, breadcrumb = [], level = 0) {
+    _getBreadcrumbHelper(chapterList: Array<any>, href: string, breadcrumb: Array<any> = [], level: number = 0): string {
         for (let i = 0; i < chapterList.length; i++) {
             breadcrumb[level] = chapterList[i].label.trim();
 
@@ -198,14 +202,14 @@ export class ReaderApi {
      * @param {KeyboardEvent} e The keyboard event.
      * @private
      */
-    _keyEventHandler(e) {
+    _keyEventHandler(e: KeyboardEvent): void {
         switch (e.code) {
             case 'ArrowLeft':
-                this._isRtl ? this.nextPage() : this.prevPage();
+                this.isRtl ? this.nextPage() : this.prevPage();
                 break;
 
             case 'ArrowRight':
-                this._isRtl ? this.prevPage() : this.nextPage();
+                this.isRtl ? this.prevPage() : this.nextPage();
                 break;
         }
     }

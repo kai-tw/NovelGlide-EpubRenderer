@@ -10,6 +10,7 @@ module.exports = {
         alias: {
             '@src': path.resolve(__dirname, 'src'),
         },
+        extensions: ['.tsx', '.ts', '.js'],
     },
     output: {
         path: path.resolve(__dirname, 'dist'),
@@ -30,6 +31,30 @@ module.exports = {
             {
                 test: /\.(s[ac])|(c)ss$/i,
                 use: [MiniCssExtractPlugin.loader, "css-loader", "sass-loader"]
+            },
+            {
+                test: /\.ts$/,
+                use: [
+                    {
+                        loader: 'babel-loader',
+                        options: {
+                            presets: [
+                                [
+                                    '@babel/preset-env',
+                                    {
+                                        useBuiltIns: 'usage',
+                                        modules: false,
+                                        corejs: 3,
+                                    },
+                                ],
+                                '@babel/preset-typescript',
+                            ],
+                            include: [
+                                path.resolve('src/'),
+                            ],
+                        },
+                    }
+                ]
             },
             {
                 test: /\.js$/,
@@ -71,4 +96,7 @@ module.exports = {
         maxEntrypointSize: 1024000,
         maxAssetSize: 1024000,
     },
+    node: {
+        global: true,
+    }
 };
