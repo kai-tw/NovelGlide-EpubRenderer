@@ -47,7 +47,14 @@ module.exports = {
                                         corejs: 3,
                                     },
                                 ],
-                                '@babel/preset-typescript',
+                                [
+                                    '@babel/preset-typescript',
+                                    {
+                                        useBuiltIns: 'usage',
+                                        modules: false,
+                                        corejs: 3,
+                                    },
+                                ],
                             ],
                             include: [
                                 path.resolve('src/'),
@@ -74,7 +81,7 @@ module.exports = {
                             ],
                             include: [
                                 path.resolve('src/'),
-                                path.resolve('node_modules/epubjs/'),
+                                // path.resolve('node_modules/epubjs/'),
                             ],
                         },
                     }

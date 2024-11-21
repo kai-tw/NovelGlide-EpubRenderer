@@ -1,4 +1,4 @@
-import Epub, {Book, Location, Rendition} from 'epubjs';
+import Epub, { Book, Location, Rendition } from 'epubjs';
 import Section from "epubjs/types/section";
 
 declare global {
@@ -51,7 +51,7 @@ export class ReaderApi {
             // Send the location information to the server after the page is relocated.
             this.rendition.on('relocated', (location: Location) => {
                 const breadcrumb: string = this._getBreadcrumb(this.book.navigation.toc, location.start.href);
-                const isRtl: boolean = this.isRtl = this.book.packaging.metadata.direction === 'rtl';
+                const isRtl: boolean = this.isRtl = this.rendition.settings.defaultDirection === 'rtl';
                 this._sendToApp('setState', {
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
@@ -140,7 +140,7 @@ export class ReaderApi {
      * @param {string} q The query string.
      */
     searchInCurrentChapter(q: string): void {
-        const item = this.book.spine.get(this.rendition.location.start.cfi);
+        const item = this.book.section(this.rendition.location.start.cfi);
         this._sendToApp('setState', {
             searchResultList: item.find(q),
         });
