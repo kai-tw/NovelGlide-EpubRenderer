@@ -4,6 +4,7 @@ import Section from "epubjs/types/section";
 declare global {
     interface Window {
         appApi: any;
+        readerApi: ReaderApi;
     }
 }
 
@@ -26,7 +27,7 @@ export class ReaderApi {
      * @param {string | null} destination
      * @param {string | null} savedLocation
      */
-    main(destination: string | null, savedLocation: string | null): void {
+    main(destination: string | null = undefined, savedLocation: string | null = undefined): void {
         this.book.ready.then(() => {
             // this.book.locations.break = 10;
 
@@ -43,16 +44,22 @@ export class ReaderApi {
             });
             return Promise.all(promises);
         }).then((_) => {
+            const locationJSON = this.book.locations.save();
             if (!savedLocation) {
                 // Send the list of locations.
-                this._sendToApp('saveLocation', this.book.locations.save());
+                this.sendToApp('saveLocation', locationJSON);
             }
+
+            // The "process" method didn't update the "total" property in the "Locations".
+            // Load the locations again to make it update the "total" value.
+            this.book.locations.load(locationJSON);
 
             // Send the location information to the server after the page is relocated.
             this.rendition.on('relocated', (location: Location) => {
-                const breadcrumb: string = this._getBreadcrumb(this.book.navigation.toc, location.start.href);
+                const breadcrumb: string = this.getBreadcrumb(this.book.navigation.toc, location.start.href);
                 const isRtl: boolean = this.isRtl = this.rendition.settings.defaultDirection === 'rtl';
-                this._sendToApp('setState', {
+                const avgPercentage = (location.start.percentage + location.end.percentage) / 2;
+                this.sendToApp('setState', {
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
                     startCfi: location.start.cfi,
@@ -61,13 +68,14 @@ export class ReaderApi {
                     isRtl: isRtl,
                     localCurrent: location.start.displayed.page,
                     localTotal: location.start.displayed.total,
+                    percentage: avgPercentage,
                 });
-                document.getElementById('page-num').innerText = `${location.start.displayed.page} / ${location.start.displayed.total}`;
+                // document.getElementById('page-num').innerText = `${location.start.displayed.page} / ${location.start.displayed.total}`;
             });
 
             return this.goto(destination);
         }).then(() => {
-            this._sendToApp('loadDone');
+            this.sendToApp('loadDone');
 
             this.setThemeData({
                 "html, body": {
@@ -76,8 +84,8 @@ export class ReaderApi {
             });
 
             // Key event listeners.
-            window.addEventListener('keyup', this._keyEventHandler.bind(this));
-            this.rendition.on('keyup', this._keyEventHandler.bind(this));
+            window.addEventListener('keyup', this.keyEventHandler.bind(this));
+            this.rendition.on('keyup', this.keyEventHandler.bind(this));
         });
     }
 
@@ -128,7 +136,7 @@ export class ReaderApi {
         });
         return Promise.all(promiseList).then((resultList) => {
             const result = [].concat.apply([], resultList);
-            this._sendToApp('setState', {
+            this.sendToApp('setState', {
                 searchResultList: result,
             });
             return Promise.resolve(result);
@@ -141,7 +149,7 @@ export class ReaderApi {
      */
     searchInCurrentChapter(q: string): void {
         const item = this.book.section(this.rendition.location.start.cfi);
-        this._sendToApp('setState', {
+        this.sendToApp('setState', {
             searchResultList: item.find(q),
         });
     }
@@ -159,7 +167,7 @@ export class ReaderApi {
      * @param {any} data The data to send.
      * @private
      */
-    _sendToApp(route: string, data: any = ""): void {
+    private sendToApp(route: string, data: any = ""): void {
         if (this.appApi) {
             this.appApi.postMessage(JSON.stringify({
                 route: route,
@@ -174,13 +182,12 @@ export class ReaderApi {
      * Get the breadcrumb by DFS.
      * @param {Array} chapterList The chapter list.
      * @param {String} href The chapter href.
-     * @private
      */
-    _getBreadcrumb(chapterList: Array<any>, href: string): string {
-        return this._getBreadcrumbHelper(chapterList, href);
+    private getBreadcrumb(chapterList: Array<any>, href: string): string {
+        return this.getBreadcrumbHelper(chapterList, href);
     }
 
-    _getBreadcrumbHelper(chapterList: Array<any>, href: string, breadcrumb: Array<any> = [], level: number = 0): string {
+    private getBreadcrumbHelper(chapterList: Array<any>, href: string, breadcrumb: Array<any> = [], level: number = 0): string {
         for (let i = 0; i < chapterList.length; i++) {
             breadcrumb[level] = chapterList[i].label.trim();
 
@@ -188,7 +195,7 @@ export class ReaderApi {
                 return breadcrumb.join(' > ');
             }
 
-            const result = this._getBreadcrumbHelper(chapterList[i].subitems, href, breadcrumb, level + 1);
+            const result = this.getBreadcrumbHelper(chapterList[i].subitems, href, breadcrumb, level + 1);
             if (!!result) {
                 return result;
             }
@@ -198,10 +205,8 @@ export class ReaderApi {
 
     /**
      * Key up event handler.
-     * @param {KeyboardEvent} e The keyboard event.
-     * @private
      */
-    _keyEventHandler(e: KeyboardEvent): void {
+    private keyEventHandler(e: KeyboardEvent): void {
         switch (e.code) {
             case 'ArrowLeft':
                 this.isRtl ? this.nextPage() : this.prevPage();
@@ -211,5 +216,10 @@ export class ReaderApi {
                 this.isRtl ? this.prevPage() : this.nextPage();
                 break;
         }
+    }
+
+    static getInstance(): ReaderApi {
+        window.readerApi ??= new ReaderApi();
+        return window.readerApi;
     }
 }
