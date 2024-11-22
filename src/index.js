@@ -1,4 +1,4 @@
 import '@src/sass/main.sass';
-import { ReaderApi } from '@src/ReaderApi';
+import { ReaderApi } from './ReaderApi';
 
-window.readerApi = new ReaderApi();
+window.readerApi ??= ReaderApi.getInstance();
