@@ -66,8 +66,6 @@ export class ReaderApi {
                     breadcrumb: breadcrumb,
                     chapterFileName: location.start.href,
                     isRtl: isRtl,
-                    localCurrent: location.start.displayed.page,
-                    localTotal: location.start.displayed.total,
                     percentage: avgPercentage,
                 });
             });
