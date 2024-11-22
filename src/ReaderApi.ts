@@ -70,7 +70,6 @@ export class ReaderApi {
                     localTotal: location.start.displayed.total,
                     percentage: avgPercentage,
                 });
-                // document.getElementById('page-num').innerText = `${location.start.displayed.page} / ${location.start.displayed.total}`;
             });
 
             return this.goto(destination);
@@ -82,10 +81,6 @@ export class ReaderApi {
                     "touch-action": "none",
                 },
             });
-
-            // Key event listeners.
-            window.addEventListener('keyup', this.keyEventHandler.bind(this));
-            this.rendition.on('keyup', this.keyEventHandler.bind(this));
         });
     }
 
@@ -201,6 +196,15 @@ export class ReaderApi {
             }
         }
         return null;
+    }
+
+    /**
+     * Initialize the debugging.
+     */
+    initDebug(): void {
+        // Key event listeners.
+        window.addEventListener('keyup', this.keyEventHandler.bind(this));
+        this.rendition.on('keyup', this.keyEventHandler.bind(this));
     }
 
     /**

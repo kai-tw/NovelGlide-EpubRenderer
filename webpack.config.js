@@ -117,7 +117,8 @@ module.exports = (evn, argv) => {
         }));
         config.entry = {
             'index.js': [
-                path.resolve(__dirname, 'src/debug.ts')
+                path.resolve(__dirname, 'src/index.js'),
+                path.resolve(__dirname, 'src/Debug.ts')
             ]
         };
     }
