@@ -58,7 +58,6 @@ export class ReaderApi {
             this.rendition.on('relocated', (location: Location) => {
                 const breadcrumb: string = this.getBreadcrumb(this.book.navigation.toc, location.start.href);
                 const isRtl: boolean = this.isRtl = this.rendition.settings.defaultDirection === 'rtl';
-                const avgPercentage = (location.start.percentage + location.end.percentage) / 2;
                 this.sendToApp('setState', {
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
@@ -66,8 +65,11 @@ export class ReaderApi {
                     breadcrumb: breadcrumb,
                     chapterFileName: location.start.href,
                     isRtl: isRtl,
-                    percentage: avgPercentage,
+                    percentage: this.getCurrentPercentage(),
+                    localTotalPages: this.getTotalPages(),
+                    localCurrentPage: this.getCurrentPage(),
                 });
+                document.getElementById("page-num").innerText = `${this.getCurrentPage()} / ${this.getTotalPages()}`;
             });
 
             return this.goto(destination);
@@ -148,6 +150,36 @@ export class ReaderApi {
     }
 
     /**
+     * Set the smooth scrolling.
+     * @param {boolean} enable
+     */
+    setSmoothScroll(enable: boolean): void {
+        this.getContainer().classList.toggle('enable-smooth-scroll', enable);
+    }
+
+    /**
+     * Get the total pages.
+     */
+    getTotalPages(): number {
+        return this.getContainer().scrollWidth / this.getContainer().clientWidth;
+    }
+
+    /**
+     * Get the current page.
+     */
+    getCurrentPage(): number {
+        // In some devices, the scrollLeft value is not accurate, so we need to round it to the nearest integer.
+        return Math.round(this.getContainer().scrollLeft / this.getContainer().clientWidth) + 1;
+    }
+
+    /**
+     * Get the current percentage.
+     */
+    getCurrentPercentage(): number {
+        return this.getContainer().scrollLeft / this.getContainer().scrollWidth;
+    }
+
+    /**
      * Set the JavaScript Channel.
      */
     setAppApi() {
@@ -197,12 +229,11 @@ export class ReaderApi {
     }
 
     /**
-     * Initialize the debugging.
+     * Get the container.
      */
-    initDebug(): void {
-        // Key event listeners.
-        window.addEventListener('keyup', this.keyEventHandler.bind(this));
-        this.rendition.on('keyup', this.keyEventHandler.bind(this));
+    private getContainer(): HTMLElement {
+        const view: any = this.rendition.views();
+        return view.container;
     }
 
     /**
@@ -223,5 +254,14 @@ export class ReaderApi {
     static getInstance(): ReaderApi {
         window.readerApi ??= new ReaderApi();
         return window.readerApi;
+    }
+
+    /**
+     * Initialize the debugging.
+     */
+    initDebug(): void {
+        // Key event listeners.
+        window.addEventListener('keyup', this.keyEventHandler.bind(this));
+        this.rendition.on('keyup', this.keyEventHandler.bind(this));
     }
 }
