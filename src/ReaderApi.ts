@@ -131,7 +131,7 @@ export class ReaderApi {
         });
         return Promise.all(promiseList).then((resultList) => {
             const result = [].concat.apply([], resultList);
-            this.sendToApp('setState', {
+            this.sendToApp('setSearchResultList', {
                 searchResultList: result,
             });
             return Promise.resolve(result);
@@ -144,7 +144,7 @@ export class ReaderApi {
      */
     searchInCurrentChapter(q: string): void {
         const item = this.book.section(this.rendition.location.start.cfi);
-        this.sendToApp('setState', {
+        this.sendToApp('setSearchResultList', {
             searchResultList: item.find(q),
         });
     }
