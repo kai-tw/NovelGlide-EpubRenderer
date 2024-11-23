@@ -65,7 +65,6 @@ export class ReaderApi {
                     breadcrumb: breadcrumb,
                     chapterFileName: location.start.href,
                     isRtl: isRtl,
-                    percentage: this.getCurrentPercentage(),
                     chapterCurrentPage: this.getCurrentPage(),
                     chapterTotalPage: this.getTotalPages(),
                 });
@@ -169,13 +168,6 @@ export class ReaderApi {
     getCurrentPage(): number {
         // In some devices, the scrollLeft value is not accurate, so we need to round it to the nearest integer.
         return Math.round(this.getContainer().scrollLeft / this.getContainer().clientWidth) + 1;
-    }
-
-    /**
-     * Get the current percentage.
-     */
-    getCurrentPercentage(): number {
-        return this.getContainer().scrollLeft / this.getContainer().scrollWidth;
     }
 
     /**
