@@ -66,10 +66,9 @@ export class ReaderApi {
                     chapterFileName: location.start.href,
                     isRtl: isRtl,
                     percentage: this.getCurrentPercentage(),
-                    localTotalPages: this.getTotalPages(),
-                    localCurrentPage: this.getCurrentPage(),
+                    chapterCurrentPage: this.getCurrentPage(),
+                    chapterTotalPage: this.getTotalPages(),
                 });
-                document.getElementById("page-num").innerText = `${this.getCurrentPage()} / ${this.getTotalPages()}`;
             });
 
             return this.goto(destination);
