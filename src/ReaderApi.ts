@@ -29,8 +29,6 @@ export class ReaderApi {
      */
     main(destination: string | null = undefined, savedLocation: string | null = undefined): void {
         this.book.ready.then(() => {
-            // this.book.locations.break = 10;
-
             // Load the saved locations.
             if (!!savedLocation) {
                 this.book.locations.load(savedLocation as string);
@@ -58,10 +56,12 @@ export class ReaderApi {
             this.rendition.on('relocated', (location: Location) => {
                 const breadcrumb: string = this.getBreadcrumb(this.book.navigation.toc, location.start.href);
                 const isRtl: boolean = this.isRtl = this.rendition.settings.defaultDirection === 'rtl';
+                const avgPercentage: number = (location.start.percentage + location.end.percentage) / 2;
+                const startCfi: string = this.book.locations.cfiFromPercentage(avgPercentage);
                 this.sendToApp('setState', {
                     atStart: location.atStart ?? false,
                     atEnd: location.atEnd ?? false,
-                    startCfi: location.start.cfi,
+                    startCfi: startCfi,
                     breadcrumb: breadcrumb,
                     chapterFileName: location.start.href,
                     isRtl: isRtl,

@@ -21,10 +21,6 @@ class Debug {
         debugDiv.appendChild(this.createButton("Prev", () => ReaderApi.getInstance().prevPage()));
         debugDiv.appendChild(this.createButton("Main", () => ReaderApi.getInstance().main()));
         debugDiv.appendChild(this.createButton("Next", () => ReaderApi.getInstance().nextPage()));
-
-        // const span = document.createElement("span");
-        // span.id = "page-num";
-        // debugDiv.appendChild(span);
     }
 
     private createButton(innerText: string, onclick: (this: GlobalEventHandlers, ev: MouseEvent) => any) {
