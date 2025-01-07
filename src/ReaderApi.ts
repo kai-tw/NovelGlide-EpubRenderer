@@ -120,19 +120,17 @@ export class ReaderApi {
      * @param {string} q The query string.
      * @returns {Promise<any>}
      */
-    searchInWholeBook(q: string): Promise<any> {
+    searchInWholeBook(q: string): void {
         const promiseList: Array<Promise<any>> = [];
         this.book.spine.each((item: any) => {
             promiseList.push(item.load(this.book.load.bind(this.book))
                 .then(item.find.bind(item, q))
                 .finally(item.unload.bind(item)));
         });
-        return Promise.all(promiseList).then((resultList) => {
-            const result = [].concat.apply([], resultList);
+        Promise.all(promiseList).then((resultList) => {
             this.sendToApp('setSearchResultList', {
-                searchResultList: result,
+                searchResultList: resultList.flat(),
             });
-            return Promise.resolve(result);
         });
     }
 
