@@ -10,7 +10,10 @@ declare global {
 class Debug {
     constructor() {
         this.initUI();
-        ReaderApi.getInstance().initDebug();
+    }
+
+    private get readerApi(): ReaderApi {
+        return ReaderApi.getInstance();
     }
 
     private initUI() {
@@ -18,9 +21,9 @@ class Debug {
         debugDiv.id = "debug";
         document.body.appendChild(debugDiv);
 
-        debugDiv.appendChild(this.createButton("Prev", () => ReaderApi.getInstance().prevPage()));
-        debugDiv.appendChild(this.createButton("Main", () => ReaderApi.getInstance().main()));
-        debugDiv.appendChild(this.createButton("Next", () => ReaderApi.getInstance().nextPage()));
+        debugDiv.appendChild(this.createButton("Prev", () => this.readerApi.prevPage()));
+        debugDiv.appendChild(this.createButton("Main", () => this.readerApi.main()));
+        debugDiv.appendChild(this.createButton("Next", () => this.readerApi.nextPage()));
     }
 
     private createButton(innerText: string, onclick: (this: GlobalEventHandlers, ev: MouseEvent) => any) {

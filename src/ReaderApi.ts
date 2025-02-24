@@ -1,18 +1,13 @@
 import Epub, { Book, Location, Rendition } from 'epubjs';
 import Section from "epubjs/types/section";
-
-declare global {
-    interface Window {
-        appApi: any;
-        readerApi: ReaderApi;
-    }
-}
+import {BreadcrumbUtils} from "./utils/BreadcrumbUtils";
+import {TextNodeUtils} from "./utils/TextNodeUtils";
+import {CommunicationService} from "./services/CommunicationService";
 
 export class ReaderApi {
     private book: Book;
     private rendition: Rendition;
-    private appApi: any;
-    private isRtl: boolean;
+    public isAtEnd: boolean = false;
 
     constructor() {
         this.book = Epub("book.epub");
@@ -20,14 +15,22 @@ export class ReaderApi {
             width: "100vw",
             height: "100vh",
         });
+        CommunicationService.register('main', this.main.bind(this));
+        CommunicationService.register('prevPage', this.prevPage.bind(this));
+        CommunicationService.register('nextPage', this.nextPage.bind(this));
+        CommunicationService.register('goto', this.goto.bind(this));
+        CommunicationService.register('setThemeData', this.setThemeData.bind(this));
+        CommunicationService.register('searchInWholeBook', this.searchInWholeBook.bind(this));
+        CommunicationService.register('searchInCurrentChapter', this.searchInCurrentChapter.bind(this));
+        CommunicationService.register('setSmoothScroll', this.setSmoothScroll.bind(this));
     }
 
     /**
      * The entry point of the reader.
-     * @param {string | null} destination
-     * @param {string | null} savedLocation
      */
-    main(destination: string | null = undefined, savedLocation: string | null = undefined): void {
+    main(data: {destination?: string; savedLocation?: string} = {}): void {
+        const destination: string | undefined = data.destination;
+        const savedLocation: string | undefined = data.savedLocation;
         this.book.ready.then(() => {
             // Load the saved locations.
             if (!!savedLocation) {
@@ -45,7 +48,7 @@ export class ReaderApi {
             const locationJSON = this.book.locations.save();
             if (!savedLocation) {
                 // Send the list of locations.
-                this.sendToApp('saveLocation', locationJSON);
+                CommunicationService.send('saveLocation', locationJSON);
             }
 
             // The "process" method didn't update the "total" property in the "Locations".
@@ -54,25 +57,26 @@ export class ReaderApi {
 
             // Send the location information to the server after the page is relocated.
             this.rendition.on('relocated', (location: Location) => {
-                const breadcrumb: string = this.getBreadcrumb(this.book.navigation.toc, location.start.href);
-                const isRtl: boolean = this.isRtl = this.rendition.settings.defaultDirection === 'rtl';
+                const breadcrumb: string = BreadcrumbUtils.get(this.book.navigation.toc, location.start.href);
+                const isRtl: boolean = this.rendition.settings.defaultDirection === 'rtl';
                 const avgPercentage: number = (location.start.percentage + location.end.percentage) / 2;
                 const startCfi: string = this.book.locations.cfiFromPercentage(avgPercentage);
-                this.sendToApp('setState', {
+                this.isAtEnd = location.atEnd ?? false;
+                CommunicationService.send('setState', {
                     atStart: location.atStart ?? false,
-                    atEnd: location.atEnd ?? false,
+                    atEnd: this.isAtEnd,
                     startCfi: startCfi,
                     breadcrumb: breadcrumb,
                     chapterFileName: location.start.href,
                     isRtl: isRtl,
-                    chapterCurrentPage: this.getCurrentPage(),
-                    chapterTotalPage: this.getTotalPages(),
+                    chapterCurrentPage: this.currentPage,
+                    chapterTotalPage: this.totalPage,
                 });
             });
 
             return this.goto(destination);
         }).then(() => {
-            this.sendToApp('loadDone');
+            CommunicationService.send('loadDone');
 
             this.setThemeData({
                 "html, body": {
@@ -128,7 +132,7 @@ export class ReaderApi {
                 .finally(item.unload.bind(item)));
         });
         Promise.all(promiseList).then((resultList) => {
-            this.sendToApp('setSearchResultList', {
+            CommunicationService.send('setSearchResultList', {
                 searchResultList: resultList.flat(),
             });
         });
@@ -140,7 +144,7 @@ export class ReaderApi {
      */
     searchInCurrentChapter(q: string): void {
         const item = this.book.section(this.rendition.location.start.cfi);
-        this.sendToApp('setSearchResultList', {
+        CommunicationService.send('setSearchResultList', {
             searchResultList: item.find(q),
         });
     }
@@ -150,107 +154,54 @@ export class ReaderApi {
      * @param {boolean} enable
      */
     setSmoothScroll(enable: boolean): void {
-        this.getContainer().classList.toggle('enable-smooth-scroll', enable);
+        this.container.classList.toggle('enable-smooth-scroll', enable);
     }
 
-    /**
-     * Get the total pages.
-     */
-    getTotalPages(): number {
-        return this.getContainer().scrollWidth / this.getContainer().clientWidth;
+    private get totalPage(): number {
+        return Math.round(this.scrollWidth / this.screenWidth * (this.isSinglePage ? 1 : 2));
     }
 
-    /**
-     * Get the current page.
-     */
-    getCurrentPage(): number {
+    private get currentPage(): number {
         // In some devices, the scrollLeft value is not accurate, so we need to round it to the nearest integer.
-        return Math.round(this.getContainer().scrollLeft / this.getContainer().clientWidth) + 1;
+        return Math.round(this.scrollLeft / this.screenWidth * (this.isSinglePage ? 1 : 2)) + 1;
     }
 
-    /**
-     * Set the JavaScript Channel.
-     */
-    setAppApi() {
-        this.appApi = window.appApi ?? {};
+    private get isSinglePage(): boolean {
+        return this.screenWidth === this.pageWidth;
     }
 
-    /**
-     * Sends the data to the server.
-     * @param {string} route The route to send the data to.
-     * @param {any} data The data to send.
-     * @private
-     */
-    private sendToApp(route: string, data: any = ""): void {
-        if (this.appApi) {
-            this.appApi.postMessage(JSON.stringify({
-                route: route,
-                data: data,
-            }));
-        } else {
-            console.log(route, data);
-        }
+    private get viewBodyElement(): HTMLBodyElement {
+        const contentList: any = this.rendition.getContents();
+        return contentList[0].content;
     }
 
-    /**
-     * Get the breadcrumb by DFS.
-     * @param {Array} chapterList The chapter list.
-     * @param {String} href The chapter href.
-     */
-    private getBreadcrumb(chapterList: Array<any>, href: string): string {
-        return this.getBreadcrumbHelper(chapterList, href);
-    }
-
-    private getBreadcrumbHelper(chapterList: Array<any>, href: string, breadcrumb: Array<any> = [], level: number = 0): string {
-        for (let i = 0; i < chapterList.length; i++) {
-            breadcrumb[level] = chapterList[i].label.trim();
-
-            if (chapterList[i].href === href) {
-                return breadcrumb.join(' > ');
-            }
-
-            const result = this.getBreadcrumbHelper(chapterList[i].subitems, href, breadcrumb, level + 1);
-            if (!!result) {
-                return result;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Get the container.
-     */
-    private getContainer(): HTMLElement {
+    private get container(): HTMLElement {
         const view: any = this.rendition.views();
         return view.container;
     }
 
-    /**
-     * Key up event handler.
-     */
-    private keyEventHandler(e: KeyboardEvent): void {
-        switch (e.code) {
-            case 'ArrowLeft':
-                this.isRtl ? this.nextPage() : this.prevPage();
-                break;
+    get scrollLeft(): number {
+        return this.container.scrollLeft;
+    }
 
-            case 'ArrowRight':
-                this.isRtl ? this.prevPage() : this.nextPage();
-                break;
-        }
+    private get scrollWidth(): number {
+        return this.container.scrollWidth;
+    }
+
+    get screenWidth(): number {
+        return this.container.clientWidth;
+    }
+
+    get pageWidth(): number {
+        return parseFloat(this.viewBodyElement.style.columnWidth);
+    }
+
+    get textNodeList(): Array<Node> {
+        return TextNodeUtils.getList(this.viewBodyElement);
     }
 
     static getInstance(): ReaderApi {
         window.readerApi ??= new ReaderApi();
         return window.readerApi;
-    }
-
-    /**
-     * Initialize the debugging.
-     */
-    initDebug(): void {
-        // Key event listeners.
-        window.addEventListener('keyup', this.keyEventHandler.bind(this));
-        this.rendition.on('keyup', this.keyEventHandler.bind(this));
     }
 }
