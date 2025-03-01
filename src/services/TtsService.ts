@@ -17,22 +17,25 @@ export class TtsService {
 
     send(): void {
         if (this.nodeList[0]) {
-            CommunicationService.send('ttsPlay', this.nodeList[0].textContent);
+            const text = this.nodeList[0].textContent.trim();
+            CommunicationService.send('ttsPlay', text);
         }
     }
 
     play(): void {
-        let isVisible = false;
         this.nodeList = this.readerApi.textNodeList
             .filter((node) => {
-                isVisible ||= TextNodeUtils.isVisible(node);
-                return isVisible;
+                const hasContent = node.textContent.trim().length > 0;
+                return TextNodeUtils.isVisible(node) && hasContent;
             });
         this.send();
     }
 
     next(): void {
+        this.previousPlayedNode = this.nodeList.shift();
+
         if (this.nodeList.length === 0) {
+            // The last paragraph is being played.
             if (this.readerApi.isAtEnd) {
                 CommunicationService.send('ttsEnd');
                 return;
@@ -40,11 +43,14 @@ export class TtsService {
             // Flipping the page.
             this.readerApi.nextPage().then(() => {
                 this.nodeList = this.readerApi.textNodeList
-                    .filter((node) => TextNodeUtils.isVisible(node) && node !== this.previousPlayedNode);
+                    .filter((node) => {
+                        const nodeText = node.textContent.trim();
+                        const previousNodeText = this.previousPlayedNode?.textContent.trim();
+                        return TextNodeUtils.isVisible(node) && nodeText !== previousNodeText;
+                    });
                 this.send();
             });
         } else {
-            this.previousPlayedNode = this.nodeList.shift();
             this.send();
         }
     }
