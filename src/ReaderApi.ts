@@ -1,4 +1,4 @@
-import Epub, { Book, Location, Rendition } from 'epubjs';
+import Epub, {Book, Location, Rendition} from 'epubjs';
 import Section from "epubjs/types/section";
 import {BreadcrumbUtils} from "./utils/BreadcrumbUtils";
 import {TextNodeUtils} from "./utils/TextNodeUtils";
@@ -8,6 +8,9 @@ export class ReaderApi {
     private book: Book;
     private rendition: Rendition;
     public isAtEnd: boolean = false;
+    private isSmoothScroll: boolean = false;
+    private isScrolling: boolean = false;
+    private isRtl: Boolean = false;
 
     constructor() {
         this.book = Epub("book.epub");
@@ -28,61 +31,51 @@ export class ReaderApi {
     /**
      * The entry point of the reader.
      */
-    main(data: {destination?: string; savedLocation?: string} = {}): void {
+    async main(data: { destination?: string; savedLocation?: string } = {}): Promise<void> {
         const destination: string | undefined = data.destination;
         const savedLocation: string | undefined = data.savedLocation;
-        this.book.ready.then(() => {
-            // Load the saved locations.
-            if (!!savedLocation) {
-                this.book.locations.load(savedLocation as string);
-                return Promise.resolve([]);
-            }
 
+        await this.book.ready;
+
+        // Load the saved locations.
+        if (!!savedLocation) {
+            this.book.locations.load(savedLocation as string);
+        } else {
             // Generate the locations
             let promises: Promise<any>[] = [];
             this.book.spine.each((section: Section) => {
                 promises.push(this.book.locations.process(section));
             });
-            return Promise.all(promises);
-        }).then((_) => {
-            const locationJSON = this.book.locations.save();
-            if (!savedLocation) {
-                // Send the list of locations.
-                CommunicationService.send('saveLocation', locationJSON);
-            }
+            await Promise.all(promises);
 
-            // The "process" method didn't update the "total" property in the "Locations".
-            // Load the locations again to make it update the "total" value.
-            this.book.locations.load(locationJSON);
+            // Send the list of locations.
+            CommunicationService.send('saveLocation', this.book.locations.save());
+        }
 
-            // Send the location information to the server after the page is relocated.
-            this.rendition.on('relocated', (location: Location) => {
-                const breadcrumb: string = BreadcrumbUtils.get(this.book.navigation.toc, location.start.href);
-                const isRtl: boolean = this.rendition.settings.defaultDirection === 'rtl';
-                const avgPercentage: number = (location.start.percentage + location.end.percentage) / 2;
-                const startCfi: string = this.book.locations.cfiFromPercentage(avgPercentage);
-                this.isAtEnd = location.atEnd ?? false;
-                CommunicationService.send('setState', {
-                    atStart: location.atStart ?? false,
-                    atEnd: this.isAtEnd,
-                    startCfi: startCfi,
-                    breadcrumb: breadcrumb,
-                    chapterFileName: location.start.href,
-                    isRtl: isRtl,
-                    chapterCurrentPage: this.currentPage,
-                    chapterTotalPage: this.totalPage,
-                });
-            });
+        this.rendition.on('relocated', this.syncState.bind(this));
 
-            return this.goto(destination);
-        }).then(() => {
-            CommunicationService.send('loadDone');
+        await this.goto(destination);
+        CommunicationService.send('loadDone');
+    }
 
-            this.setThemeData({
-                "html, body": {
-                    "touch-action": "none",
-                },
-            });
+    private syncState() {
+        if (this.isScrolling) {
+            return;
+        }
+
+        this.isRtl = this.rendition.settings.defaultDirection === 'rtl';
+
+        const location = this.rendition.location;
+        const breadcrumb: string = BreadcrumbUtils.get(this.book.navigation.toc, location.start.href);
+        const avgPercentage: number = (location.start.percentage + location.end.percentage) / 2;
+        const startCfi: string = this.book.locations.cfiFromPercentage(avgPercentage);
+        this.isAtEnd = location.atEnd ?? false;
+        CommunicationService.send('setState', {
+            startCfi: startCfi,
+            breadcrumb: breadcrumb,
+            chapterFileName: location.start.href,
+            chapterCurrentPage: this.currentPage,
+            chapterTotalPage: this.totalPage,
         });
     }
 
@@ -90,25 +83,103 @@ export class ReaderApi {
      * Navigates to the previous page.
      * @returns {Promise<void>}
      */
-    prevPage(): Promise<void> {
-        return this.rendition.prev();
+    async prevPage(): Promise<void> {
+        if (this.isRtl) {
+            await this.gotoNextPage();
+        } else {
+            await this.gotoPrevPage();
+        }
     };
+
+    private async gotoPrevPage(): Promise<void> {
+        if (this.isScrolling) {
+            return;
+        }
+
+        const doGotoPrevChapter: boolean = this.currentPage === 1;
+        const isSmoothScroll: boolean = this.isSmoothScroll;
+
+        // Disable the smooth scroll if it is going to the next chapter.
+        if (doGotoPrevChapter) {
+            console.log("Disable smooth scroll");
+            this.setSmoothScroll(false);
+        }
+
+        let resolver: () => void;
+        const scrollEndFunc = () => {
+            this.container.removeEventListener("scrollend", scrollEndFunc);
+            resolver?.call(this);
+        };
+
+        this.container.addEventListener("scrollend", scrollEndFunc);
+
+        this.isScrolling = true;
+
+        await new Promise<void>(async (resolve, reject) => {
+            resolver = resolve;
+
+            if (doGotoPrevChapter) {
+                this.rendition.once('rendered', scrollEndFunc.bind(this));
+            }
+
+            await this.rendition.prev();
+        });
+
+        // Restore the smooth scroll setting.
+        this.setSmoothScroll(isSmoothScroll);
+        this.isScrolling = false;
+    }
 
     /**
      * Navigates to the next page.
      * @returns {Promise<void>}
      */
-    nextPage(): Promise<void> {
-        return this.rendition.next();
+    async nextPage(): Promise<void> {
+        if (this.isRtl) {
+            await this.gotoPrevPage();
+        } else {
+            await this.gotoNextPage();
+        }
     };
+
+    private async gotoNextPage(): Promise<void> {
+        if (this.isScrolling) {
+            return;
+        }
+
+        const lastPage: number = this.totalPage - (this.isSinglePage ? 0 : 1);
+        const doGotoNextChapter: boolean = this.currentPage === lastPage;
+
+        let resolver: () => void;
+        const scrollEndFunc = () => {
+            this.container.removeEventListener("scrollend", scrollEndFunc);
+            resolver?.call(this);
+        };
+
+        this.container.addEventListener("scrollend", scrollEndFunc);
+
+        this.isScrolling = true;
+
+        await new Promise<void>(async (resolve, reject) => {
+            resolver = resolve;
+
+            if (doGotoNextChapter) {
+                this.rendition.once('relocated', scrollEndFunc.bind(this));
+            }
+
+            await this.rendition.next();
+        });
+
+        this.isScrolling = false;
+    }
 
     /**
      * Navigates to target position (Cfi, percentage, or href are accepted).
      * @param {string} destination
      * @returns {Promise<void>}
      */
-    goto(destination: string): Promise<void> {
-        return this.rendition.display(destination);
+    async goto(destination: string): Promise<void> {
+        await this.rendition.display(destination);
     }
 
     /**
@@ -154,6 +225,7 @@ export class ReaderApi {
      * @param {boolean} enable
      */
     setSmoothScroll(enable: boolean): void {
+        this.isSmoothScroll = enable;
         this.container.classList.toggle('enable-smooth-scroll', enable);
     }
 

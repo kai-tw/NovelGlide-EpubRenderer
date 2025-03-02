@@ -31,7 +31,7 @@ export class TtsService {
         this.send();
     }
 
-    next(): void {
+    async next(): Promise<void> {
         this.previousPlayedNode = this.nodeList.shift();
 
         if (this.nodeList.length === 0) {
@@ -40,19 +40,18 @@ export class TtsService {
                 CommunicationService.send('ttsEnd');
                 return;
             }
+
             // Flipping the page.
-            this.readerApi.nextPage().then(() => {
-                this.nodeList = this.readerApi.textNodeList
-                    .filter((node) => {
-                        const nodeText = node.textContent.trim();
-                        const previousNodeText = this.previousPlayedNode?.textContent.trim();
-                        return TextNodeUtils.isVisible(node) && nodeText !== previousNodeText;
-                    });
-                this.send();
-            });
-        } else {
-            this.send();
+            await this.readerApi.nextPage();
+
+            this.nodeList = this.readerApi.textNodeList
+                .filter((node) => {
+                    const nodeText = node.textContent.trim();
+                    const previousNodeText = this.previousPlayedNode?.textContent.trim();
+                    return TextNodeUtils.isVisible(node) && nodeText !== previousNodeText;
+                });
         }
+        this.send();
     }
 
     stop(): void {
