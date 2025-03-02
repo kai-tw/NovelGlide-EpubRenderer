@@ -3,6 +3,7 @@ import Section from "epubjs/types/section";
 import {BreadcrumbUtils} from "./utils/BreadcrumbUtils";
 import {TextNodeUtils} from "./utils/TextNodeUtils";
 import {CommunicationService} from "./services/CommunicationService";
+import {DelayTimeUtils} from "./utils/DelayTimeUtils";
 
 export class ReaderApi {
     private book: Book;
@@ -52,24 +53,19 @@ export class ReaderApi {
             CommunicationService.send('saveLocation', this.book.locations.save());
         }
 
-        this.rendition.on('relocated', this.syncState.bind(this));
-
         await this.goto(destination);
         CommunicationService.send('loadDone');
     }
 
     private syncState() {
-        if (this.isScrolling) {
-            return;
-        }
+        const location = this.rendition.location;
 
         this.isRtl = this.rendition.settings.defaultDirection === 'rtl';
+        this.isAtEnd = location.atEnd ?? false;
 
-        const location = this.rendition.location;
         const breadcrumb: string = BreadcrumbUtils.get(this.book.navigation.toc, location.start.href);
         const avgPercentage: number = (location.start.percentage + location.end.percentage) / 2;
         const startCfi: string = this.book.locations.cfiFromPercentage(avgPercentage);
-        this.isAtEnd = location.atEnd ?? false;
         CommunicationService.send('setState', {
             startCfi: startCfi,
             breadcrumb: breadcrumb,
@@ -101,7 +97,6 @@ export class ReaderApi {
 
         // Disable the smooth scroll if it is going to the next chapter.
         if (doGotoPrevChapter) {
-            console.log("Disable smooth scroll");
             this.setSmoothScroll(false);
         }
 
@@ -111,19 +106,24 @@ export class ReaderApi {
             resolver?.call(this);
         };
 
-        this.container.addEventListener("scrollend", scrollEndFunc);
+        if (doGotoPrevChapter) {
+            this.rendition.once('relocated', scrollEndFunc.bind(this));
+        } else {
+            this.container.addEventListener("scrollend", scrollEndFunc);
+        }
 
         this.isScrolling = true;
-
         await new Promise<void>(async (resolve, reject) => {
             resolver = resolve;
-
-            if (doGotoPrevChapter) {
-                this.rendition.once('rendered', scrollEndFunc.bind(this));
-            }
-
             await this.rendition.prev();
         });
+
+        this.syncState();
+
+        if (isSmoothScroll) {
+            // De-bounce
+            await DelayTimeUtils.delay(300);
+        }
 
         // Restore the smooth scroll setting.
         this.setSmoothScroll(isSmoothScroll);
@@ -156,19 +156,25 @@ export class ReaderApi {
             resolver?.call(this);
         };
 
-        this.container.addEventListener("scrollend", scrollEndFunc);
+        if (doGotoNextChapter) {
+            this.rendition.once('relocated', scrollEndFunc.bind(this));
+        } else {
+            this.container.addEventListener("scrollend", scrollEndFunc);
+        }
 
         this.isScrolling = true;
 
         await new Promise<void>(async (resolve, reject) => {
             resolver = resolve;
-
-            if (doGotoNextChapter) {
-                this.rendition.once('relocated', scrollEndFunc.bind(this));
-            }
-
             await this.rendition.next();
         });
+
+        this.syncState();
+
+        if (this.isSmoothScroll) {
+            // De-bounce
+            await DelayTimeUtils.delay(300);
+        }
 
         this.isScrolling = false;
     }
@@ -179,6 +185,7 @@ export class ReaderApi {
      * @returns {Promise<void>}
      */
     async goto(destination: string): Promise<void> {
+        this.rendition.once('relocated', this.syncState.bind(this));
         await this.rendition.display(destination);
     }
 
@@ -245,6 +252,11 @@ export class ReaderApi {
     private get viewBodyElement(): HTMLBodyElement {
         const contentList: any = this.rendition.getContents();
         return contentList[0].content;
+    }
+
+    private get viewDocument(): Document {
+        const contentList: any = this.rendition.getContents();
+        return contentList[0].document;
     }
 
     private get container(): HTMLElement {
