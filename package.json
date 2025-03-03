@@ -14,11 +14,11 @@
   "description": "",
   "devDependencies": {
     "@babel/core": "^7.26.0",
-    "@babel/plugin-transform-runtime": "^7.25.7",
+    "@babel/plugin-transform-runtime": "^7.26.9",
     "@babel/preset-env": "^7.26.0",
     "@babel/preset-typescript": "^7.26.0",
     "@babel/register": "^7.25.9",
-    "@babel/runtime": "^7.25.7",
+    "@babel/runtime": "^7.26.9",
     "babel-loader": "^9.2.1",
     "copy-webpack-plugin": "^12.0.2",
     "html-webpack-plugin": "^5.6.0",
@@ -30,6 +30,8 @@
     "webpack-dev-server": "^5.0.4"
   },
   "dependencies": {
+    "@af-utils/scrollend-polyfill": "^0.0.14",
+    "@babel/runtime-corejs3": "^7.26.9",
     "core-js": "^3.38.1",
     "css-loader": "^7.1.2",
     "epubjs": "^0.3.93",

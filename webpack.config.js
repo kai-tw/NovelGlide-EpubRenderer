@@ -40,25 +40,22 @@ module.exports = (evn, argv) => {
                             loader: 'babel-loader',
                             options: {
                                 presets: [
-                                    [
-                                        '@babel/preset-env',
-                                        {
-                                            useBuiltIns: 'usage',
-                                            modules: false,
-                                            corejs: 3,
-                                        },
-                                    ],
-                                    [
-                                        '@babel/preset-typescript',
-                                        {
-                                            useBuiltIns: 'usage',
-                                            modules: false,
-                                            corejs: 3,
-                                        },
-                                    ],
+                                    ['@babel/preset-env', {
+                                        useBuiltIns: false,
+                                    }],
+                                    ['@babel/preset-typescript', {
+                                        useBuiltIns: false,
+                                    }],
                                 ],
                                 include: [
                                     path.resolve('src/'),
+                                ],
+                                plugins: [
+                                    ['@babel/plugin-transform-runtime', {
+                                        corejs: {version: 3},
+                                        helpers: true,
+                                        regenerator: true,
+                                    }],
                                 ],
                             },
                         }
@@ -71,18 +68,19 @@ module.exports = (evn, argv) => {
                             loader: 'babel-loader',
                             options: {
                                 presets: [
-                                    [
-                                        '@babel/preset-env',
-                                        {
-                                            useBuiltIns: 'usage',
-                                            modules: false,
-                                            corejs: 3,
-                                        },
-                                    ],
+                                    ['@babel/preset-env', {
+                                        useBuiltIns: false,
+                                    }],
                                 ],
                                 include: [
                                     path.resolve('src/'),
-                                    // path.resolve('node_modules/epubjs/'),
+                                ],
+                                plugins: [
+                                    ['@babel/plugin-transform-runtime', {
+                                        corejs: {version: 3},
+                                        helpers: true,
+                                        regenerator: true,
+                                    }],
                                 ],
                             },
                         }
@@ -112,7 +110,7 @@ module.exports = (evn, argv) => {
     if (argv.mode === "development") {
         config.plugins.unshift(new CopyWebpackPlugin({
             patterns: [
-                { from: 'book.epub', to: 'book.epub' }
+                {from: 'book.epub', to: 'book.epub'}
             ]
         }));
         config.entry = {

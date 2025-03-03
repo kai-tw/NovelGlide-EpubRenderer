@@ -1,9 +1,10 @@
-import Epub, {Book, Location, Rendition} from 'epubjs';
+import Epub, {Book, Rendition} from 'epubjs';
 import Section from "epubjs/types/section";
 import {BreadcrumbUtils} from "./utils/BreadcrumbUtils";
 import {TextNodeUtils} from "./utils/TextNodeUtils";
 import {CommunicationService} from "./services/CommunicationService";
 import {DelayTimeUtils} from "./utils/DelayTimeUtils";
+import "@af-utils/scrollend-polyfill";
 
 export class ReaderApi {
     private book: Book;
@@ -12,6 +13,7 @@ export class ReaderApi {
     private isSmoothScroll: boolean = false;
     private isScrolling: boolean = false;
     private isRtl: Boolean = false;
+    private startCfi: string = "";
 
     constructor() {
         this.book = Epub("book.epub");
@@ -53,6 +55,15 @@ export class ReaderApi {
             CommunicationService.send('saveLocation', this.book.locations.save());
         }
 
+        this.rendition.on("resized", () => {
+            const isSmoothScroll = this.isSmoothScroll;
+            this.setSmoothScroll(false);
+            this.rendition.once("relocated", () => {
+                this.setSmoothScroll(isSmoothScroll);
+            });
+            this.goto(this.startCfi);
+        });
+
         await this.goto(destination);
         CommunicationService.send('loadDone');
     }
@@ -65,7 +76,7 @@ export class ReaderApi {
 
         const breadcrumb: string = BreadcrumbUtils.get(this.book.navigation.toc, location.start.href);
         const avgPercentage: number = (location.start.percentage + location.end.percentage) / 2;
-        const startCfi: string = this.book.locations.cfiFromPercentage(avgPercentage);
+        const startCfi: string = this.startCfi = this.book.locations.cfiFromPercentage(avgPercentage);
         CommunicationService.send('setState', {
             startCfi: startCfi,
             breadcrumb: breadcrumb,
@@ -106,7 +117,7 @@ export class ReaderApi {
             resolver?.call(this);
         };
 
-        if (doGotoPrevChapter) {
+        if (!isSmoothScroll || doGotoPrevChapter) {
             this.rendition.once('relocated', scrollEndFunc.bind(this));
         } else {
             this.container.addEventListener("scrollend", scrollEndFunc);
