@@ -17,7 +17,7 @@ export class CommunicationService {
         }
     }
 
-    receive(route: string, data: string = "{}"): void {
+    receive(route: string, data: any): void {
         if (this.keyMap.has(route)) {
             this.keyMap.get(route)(data);
         }

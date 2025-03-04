@@ -33,8 +33,8 @@ export class ReaderApi {
     /**
      * The entry point of the reader.
      */
-    async main(data: { destination?: string; savedLocation?: string } = {}): Promise<void> {
-        const destination: string | undefined = data.destination;
+    async main(data: { destination?: any; savedLocation?: any } = {}): Promise<void> {
+        const destination: string | undefined = data.destination === null ? undefined : data.destination;
         const savedLocation: string | undefined = data.savedLocation;
 
         await this.book.ready;
