@@ -5,22 +5,20 @@ import {TextNodeUtils} from "./utils/TextNodeUtils";
 import {CommunicationService} from "./services/CommunicationService";
 import {DelayTimeUtils} from "./utils/DelayTimeUtils";
 import "@af-utils/scrollend-polyfill";
-import {TtsService} from "./services/TtsService";
 
 export class ReaderApi {
     private book: Book;
-    private rendition: Rendition;
+    public rendition: Rendition;
     public isAtEnd: boolean = false;
     private isSmoothScroll: boolean = false;
     private isScrolling: boolean = false;
     private isRtl: Boolean = false;
-    private startCfi: string = "";
 
     constructor() {
         this.book = Epub("book.epub");
         this.rendition = this.book.renderTo("app", {
-            width: "100vw",
-            height: "100vh",
+            width: window.innerWidth,
+            height: window.innerHeight,
         });
         CommunicationService.register('main', this.main.bind(this));
         CommunicationService.register('prevPage', this.prevPage.bind(this));
@@ -56,20 +54,19 @@ export class ReaderApi {
             CommunicationService.send('saveLocation', this.book.locations.save());
         }
 
-        this.rendition.on("resized", this.onResize.bind(this));
+        this.rendition.on("orientationchange", this.onOrientationChange.bind(this));
 
         await this.goto(destination);
         CommunicationService.send('loadDone');
     }
 
-    private async onResize(): Promise<void> {
+    private async onOrientationChange(): Promise<void> {
+        this.rendition.resize(window.innerWidth, window.innerHeight);
         const isSmoothScroll = this.isSmoothScroll;
         this.setSmoothScroll(false);
         this.rendition.once("relocated", () => {
             this.setSmoothScroll(isSmoothScroll);
         });
-        await this.goto(this.startCfi);
-        TtsService.getInstance().onResize();
     }
 
     private syncState() {
@@ -80,7 +77,7 @@ export class ReaderApi {
 
         const breadcrumb: string = BreadcrumbUtils.get(this.book.navigation.toc, location.start.href);
         const avgPercentage: number = (location.start.percentage + location.end.percentage) / 2;
-        const startCfi: string = this.startCfi = this.book.locations.cfiFromPercentage(avgPercentage);
+        const startCfi: string = this.book.locations.cfiFromPercentage(avgPercentage);
         CommunicationService.send('setState', {
             startCfi: startCfi,
             breadcrumb: breadcrumb,
@@ -88,6 +85,13 @@ export class ReaderApi {
             chapterCurrentPage: this.currentPage,
             chapterTotalPage: this.totalPage,
         });
+        CommunicationService.send('log', JSON.stringify({
+            startCfi: startCfi,
+            breadcrumb: breadcrumb,
+            chapterFileName: location.start.href,
+            chapterCurrentPage: this.currentPage,
+            chapterTotalPage: this.totalPage,
+        }));
     }
 
     /**

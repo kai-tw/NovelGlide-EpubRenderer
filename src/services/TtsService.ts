@@ -11,6 +11,9 @@ export class TtsService {
         CommunicationService.register('ttsPlay', this.play.bind(this));
         CommunicationService.register('ttsNext', this.next.bind(this));
         CommunicationService.register('ttsStop', this.stop.bind(this));
+
+        ReaderApi.getInstance()
+            .rendition.on("orientationchange", this.onOrientationChange.bind(this));
     }
 
     send(): void {
@@ -62,11 +65,13 @@ export class TtsService {
         this.isPlaying = false;
     }
 
-    onResize(): void {
+    private onOrientationChange(): void {
         if (this.isPlaying) {
+            ReaderApi.getInstance().rendition.once("relocated", () => {
+                this.play();
+            });
             this.stop();
             CommunicationService.send('ttsStop');
-            this.play();
         }
     }
 
