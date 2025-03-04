@@ -5,9 +5,7 @@ import {CommunicationService} from "./CommunicationService";
 export class TtsService {
     private nodeList: Array<Node> = [];
     private previousPlayedNode: Node | null = null;
-    private get readerApi(): ReaderApi {
-        return ReaderApi.getInstance();
-    }
+    private isPlaying: boolean = false;
 
     constructor() {
         CommunicationService.register('ttsPlay', this.play.bind(this));
@@ -23,12 +21,15 @@ export class TtsService {
     }
 
     play(): void {
-        this.nodeList = this.readerApi.textNodeList
+        this.nodeList = ReaderApi.getInstance().textNodeList
             .filter((node) => {
                 const hasContent = node.textContent.trim().length > 0;
                 return TextNodeUtils.isVisible(node) && hasContent;
             });
-        this.send();
+        if (this.nodeList.length > 0) {
+            this.isPlaying = true;
+            this.send();
+        }
     }
 
     async next(): Promise<void> {
@@ -36,15 +37,16 @@ export class TtsService {
 
         if (this.nodeList.length === 0) {
             // The last paragraph is being played.
-            if (this.readerApi.isAtEnd) {
+            if (ReaderApi.getInstance().isAtEnd) {
+                this.stop();
                 CommunicationService.send('ttsEnd');
                 return;
             }
 
             // Flipping the page.
-            await this.readerApi.nextPage();
+            await ReaderApi.getInstance().nextPage();
 
-            this.nodeList = this.readerApi.textNodeList
+            this.nodeList = ReaderApi.getInstance().textNodeList
                 .filter((node) => {
                     const nodeText = node.textContent.trim();
                     const previousNodeText = this.previousPlayedNode?.textContent.trim();
@@ -57,6 +59,15 @@ export class TtsService {
     stop(): void {
         this.nodeList = [];
         this.previousPlayedNode = null;
+        this.isPlaying = false;
+    }
+
+    onResize(): void {
+        if (this.isPlaying) {
+            this.stop();
+            CommunicationService.send('ttsStop');
+            this.play();
+        }
     }
 
     static getInstance(): TtsService {

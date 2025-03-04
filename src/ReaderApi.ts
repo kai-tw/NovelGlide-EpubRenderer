@@ -5,6 +5,7 @@ import {TextNodeUtils} from "./utils/TextNodeUtils";
 import {CommunicationService} from "./services/CommunicationService";
 import {DelayTimeUtils} from "./utils/DelayTimeUtils";
 import "@af-utils/scrollend-polyfill";
+import {TtsService} from "./services/TtsService";
 
 export class ReaderApi {
     private book: Book;
@@ -55,17 +56,20 @@ export class ReaderApi {
             CommunicationService.send('saveLocation', this.book.locations.save());
         }
 
-        this.rendition.on("resized", () => {
-            const isSmoothScroll = this.isSmoothScroll;
-            this.setSmoothScroll(false);
-            this.rendition.once("relocated", () => {
-                this.setSmoothScroll(isSmoothScroll);
-            });
-            this.goto(this.startCfi);
-        });
+        this.rendition.on("resized", this.onResize.bind(this));
 
         await this.goto(destination);
         CommunicationService.send('loadDone');
+    }
+
+    private async onResize(): Promise<void> {
+        const isSmoothScroll = this.isSmoothScroll;
+        this.setSmoothScroll(false);
+        this.rendition.once("relocated", () => {
+            this.setSmoothScroll(isSmoothScroll);
+        });
+        await this.goto(this.startCfi);
+        TtsService.getInstance().onResize();
     }
 
     private syncState() {
