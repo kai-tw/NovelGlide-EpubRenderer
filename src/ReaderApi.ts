@@ -7,12 +7,16 @@ import {DelayTimeUtils} from "./utils/DelayTimeUtils";
 import "@af-utils/scrollend-polyfill";
 
 export class ReaderApi {
-    private book: Book;
+    public book: Book;
     public rendition: Rendition;
     public isAtEnd: boolean = false;
     private isSmoothScroll: boolean = false;
     private isScrolling: boolean = false;
     private isRtl: Boolean = false;
+
+    private fontColor: string = 'unset';
+    private fontSize: number = 16;
+    private lineHeight: number = 1.5;
 
     constructor() {
         this.book = Epub("book.epub");
@@ -24,9 +28,9 @@ export class ReaderApi {
         CommunicationService.register('prevPage', this.prevPage.bind(this));
         CommunicationService.register('nextPage', this.nextPage.bind(this));
         CommunicationService.register('goto', this.goto.bind(this));
-        CommunicationService.register('setThemeData', this.setThemeData.bind(this));
-        CommunicationService.register('searchInWholeBook', this.searchInWholeBook.bind(this));
-        CommunicationService.register('searchInCurrentChapter', this.searchInCurrentChapter.bind(this));
+        CommunicationService.register('setFontColor', this.setFontColor.bind(this));
+        CommunicationService.register('setFontSize', this.setFontSize.bind(this));
+        CommunicationService.register('setLineHeight', this.setLineHeight.bind(this));
         CommunicationService.register('setSmoothScroll', this.setSmoothScroll.bind(this));
     }
 
@@ -54,9 +58,12 @@ export class ReaderApi {
             CommunicationService.send('saveLocation', this.book.locations.save());
         }
 
-        this.rendition.on("orientationchange", this.onOrientationChange.bind(this));
+        this.rendition.on('orientationchange', this.onOrientationChange.bind(this));
 
         await this.goto(destination);
+
+        this.applyCssChanges();
+
         CommunicationService.send('loadDone');
     }
 
@@ -85,13 +92,6 @@ export class ReaderApi {
             chapterCurrentPage: this.currentPage,
             chapterTotalPage: this.totalPage,
         });
-        CommunicationService.send('log', JSON.stringify({
-            startCfi: startCfi,
-            breadcrumb: breadcrumb,
-            chapterFileName: location.start.href,
-            chapterCurrentPage: this.currentPage,
-            chapterTotalPage: this.totalPage,
-        }));
     }
 
     /**
@@ -209,40 +209,52 @@ export class ReaderApi {
     }
 
     /**
-     * Sets the theme.
-     * @param {object} themeData The theme JSON data.
+     * Set the font color.
      */
-    setThemeData(themeData: object): void {
-        this.rendition.themes.default(themeData);
-    };
-
-    /**
-     * Search in the whole book.
-     * @param {string} q The query string.
-     * @returns {Promise<any>}
-     */
-    searchInWholeBook(q: string): void {
-        const promiseList: Array<Promise<any>> = [];
-        this.book.spine.each((item: any) => {
-            promiseList.push(item.load(this.book.load.bind(this.book))
-                .then(item.find.bind(item, q))
-                .finally(item.unload.bind(item)));
-        });
-        Promise.all(promiseList).then((resultList) => {
-            CommunicationService.send('setSearchResultList', {
-                searchResultList: resultList.flat(),
-            });
-        });
+    setFontColor(color: string): void {
+        if (color !== this.fontColor) {
+            this.fontColor = color;
+            this.applyCssChanges();
+        }
     }
 
     /**
-     * Search in the current chapter.
-     * @param {string} q The query string.
+     * Set the font size.
      */
-    searchInCurrentChapter(q: string): void {
-        const item = this.book.section(this.rendition.location.start.cfi);
-        CommunicationService.send('setSearchResultList', {
-            searchResultList: item.find(q),
+    setFontSize(fontSize: number): void {
+        if (fontSize !== this.fontSize) {
+            this.fontSize = fontSize;
+            this.rendition.themes.fontSize(`${fontSize}px`);
+            this.syncState();
+        }
+    }
+
+    /**
+     * Set the line height.
+     */
+    setLineHeight(lineHeight: number): void {
+        if (lineHeight !== this.lineHeight) {
+            this.lineHeight = lineHeight;
+            this.applyCssChanges();
+            this.syncState();
+        }
+    }
+
+    /**
+     * Set the default theme.
+     */
+    private applyCssChanges(): void {
+        // Check if background color is set.
+        const backgroundColor: string = getComputedStyle(this.viewBodyElement).backgroundColor;
+        const isTransparent: boolean = backgroundColor === 'rgba(0, 0, 0, 0)' || backgroundColor === 'transparent';
+        this.rendition.themes.default({
+            'body': {
+                'color': isTransparent ? this.fontColor : 'inherit',
+                'line-height': `${this.lineHeight}`,
+            },
+            'a': {
+                'color': 'inherit',
+            },
         });
     }
 
@@ -271,11 +283,6 @@ export class ReaderApi {
     private get viewBodyElement(): HTMLBodyElement {
         const contentList: any = this.rendition.getContents();
         return contentList[0].content;
-    }
-
-    private get viewDocument(): Document {
-        const contentList: any = this.rendition.getContents();
-        return contentList[0].document;
     }
 
     private get container(): HTMLElement {
