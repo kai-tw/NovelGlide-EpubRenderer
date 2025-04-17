@@ -104,7 +104,7 @@ export class ReaderApi {
         } else {
             await this.gotoPrevPage();
         }
-    };
+    }
 
     private async gotoPrevPage(): Promise<void> {
         if (this.isScrolling) {
@@ -155,7 +155,7 @@ export class ReaderApi {
         } else {
             await this.gotoNextPage();
         }
-    };
+    }
 
     private async gotoNextPage(): Promise<void> {
         if (this.isScrolling) {
