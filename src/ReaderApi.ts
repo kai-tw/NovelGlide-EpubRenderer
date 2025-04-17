@@ -58,7 +58,9 @@ export class ReaderApi {
             CommunicationService.send('saveLocation', this.book.locations.save());
         }
 
+        // Event listeners
         this.rendition.on('orientationchange', this.onOrientationChange.bind(this));
+        this.rendition.on('relocated', this.syncState.bind(this));
 
         await this.goto(destination);
 
@@ -76,9 +78,7 @@ export class ReaderApi {
         });
     }
 
-    private syncState() {
-        const location = this.rendition.location;
-
+    private syncState(location: any) {
         this.isRtl = this.rendition.settings.defaultDirection === 'rtl';
         this.isAtEnd = location.atEnd ?? false;
 
@@ -114,35 +114,31 @@ export class ReaderApi {
         const doGotoPrevChapter: boolean = this.currentPage === 1;
         const isSmoothScroll: boolean = this.isSmoothScroll;
 
-        // Disable the smooth scroll if it is going to the next chapter.
+        // Disable the smooth scroll if it is going to the previous chapter.
         if (doGotoPrevChapter) {
             this.setSmoothScroll(false);
         }
 
-        let resolver: () => void;
-        const scrollEndFunc = () => {
-            this.container.removeEventListener("scrollend", scrollEndFunc);
-            resolver?.call(this);
-        };
-
-        if (!isSmoothScroll || doGotoPrevChapter) {
-            this.rendition.once('relocated', scrollEndFunc.bind(this));
-        } else {
-            this.container.addEventListener("scrollend", scrollEndFunc);
-        }
-
         this.isScrolling = true;
-        await new Promise<void>(async (resolve, reject) => {
-            resolver = resolve;
-            await this.rendition.prev();
+        this.rendition.prev();
+
+        // Wait for the scroll end event.
+        await new Promise<void>((resolve, reject) => {
+            if (!isSmoothScroll || doGotoPrevChapter) {
+                // Smooth scroll is disabled, or it is going to the previous chapter.
+                this.rendition.once('relocated', () => resolve());
+            } else {
+                // Smooth scroll is enabled.
+                const scrollEndFunc = async () => {
+                    this.container.removeEventListener("scrollend", scrollEndFunc);
+
+                    // De-bounce
+                    await DelayTimeUtils.delay(300);
+                    resolve();
+                };
+                this.container.addEventListener("scrollend", scrollEndFunc);
+            }
         });
-
-        this.syncState();
-
-        if (isSmoothScroll) {
-            // De-bounce
-            await DelayTimeUtils.delay(300);
-        }
 
         // Restore the smooth scroll setting.
         this.setSmoothScroll(isSmoothScroll);
@@ -169,31 +165,25 @@ export class ReaderApi {
         const lastPage: number = this.totalPage - (this.isSinglePage ? 0 : 1);
         const doGotoNextChapter: boolean = this.currentPage === lastPage;
 
-        let resolver: () => void;
-        const scrollEndFunc = () => {
-            this.container.removeEventListener("scrollend", scrollEndFunc);
-            resolver?.call(this);
-        };
-
-        if (doGotoNextChapter) {
-            this.rendition.once('relocated', scrollEndFunc.bind(this));
-        } else {
-            this.container.addEventListener("scrollend", scrollEndFunc);
-        }
-
         this.isScrolling = true;
+        this.rendition.next();
 
         await new Promise<void>(async (resolve, reject) => {
-            resolver = resolve;
-            await this.rendition.next();
+            if (doGotoNextChapter) {
+                // Disable the smooth scroll if it is going to the next chapter.
+                this.rendition.once('relocated', () => resolve());
+            } else {
+                // Smooth scroll is enabled.
+                const scrollEndFunc = async () => {
+                    this.container.removeEventListener("scrollend", scrollEndFunc);
+
+                    // De-bounce
+                    await DelayTimeUtils.delay(300);
+                    resolve();
+                };
+                this.container.addEventListener("scrollend", scrollEndFunc);
+            }
         });
-
-        this.syncState();
-
-        if (this.isSmoothScroll) {
-            // De-bounce
-            await DelayTimeUtils.delay(300);
-        }
 
         this.isScrolling = false;
     }
@@ -204,7 +194,6 @@ export class ReaderApi {
      * @returns {Promise<void>}
      */
     async goto(destination: string): Promise<void> {
-        this.rendition.once('relocated', this.syncState.bind(this));
         await this.rendition.display(destination);
     }
 
@@ -225,7 +214,6 @@ export class ReaderApi {
         if (fontSize !== this.fontSize) {
             this.fontSize = fontSize;
             this.rendition.themes.fontSize(`${fontSize}px`);
-            this.syncState();
         }
     }
 
@@ -236,7 +224,6 @@ export class ReaderApi {
         if (lineHeight !== this.lineHeight) {
             this.lineHeight = lineHeight;
             this.applyCssChanges();
-            this.syncState();
         }
     }
 
