@@ -42,9 +42,7 @@ export class SearchService {
     }
 
     static getInstance(): SearchService {
-        if (!window.searchService) {
-            window.searchService = new SearchService();
-        }
+        window.searchService ??= new SearchService();
         return window.searchService;
     }
 }

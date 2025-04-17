@@ -120,10 +120,10 @@ export class ReaderApi {
         }
 
         this.isScrolling = true;
-        this.rendition.prev();
+        this.rendition.prev().then( /* Do nothing */);
 
         // Wait for the scroll end event.
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((resolve) => {
             if (!isSmoothScroll || doGotoPrevChapter) {
                 // Smooth scroll is disabled, or it is going to the previous chapter.
                 this.rendition.once('relocated', () => resolve());
@@ -166,11 +166,11 @@ export class ReaderApi {
         const doGotoNextChapter: boolean = this.currentPage === lastPage;
 
         this.isScrolling = true;
-        this.rendition.next();
+        this.rendition.next().then( /* Do nothing */);
 
-        await new Promise<void>(async (resolve, reject) => {
-            if (doGotoNextChapter) {
-                // Disable the smooth scroll if it is going to the next chapter.
+        await new Promise<void>(async (resolve) => {
+            if (!this.isSmoothScroll || doGotoNextChapter) {
+                // Smooth scroll is disabled, or it is going to the next chapter.
                 this.rendition.once('relocated', () => resolve());
             } else {
                 // Smooth scroll is enabled.
