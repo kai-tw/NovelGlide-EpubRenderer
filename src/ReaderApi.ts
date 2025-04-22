@@ -99,18 +99,21 @@ export class ReaderApi {
      * @returns {Promise<void>}
      */
     async prevPage(): Promise<void> {
+        if (this.isScrolling) {
+            return;
+        }
+        this.isScrolling = true;
+
         if (this.isRtl) {
             await this.gotoNextPage();
         } else {
             await this.gotoPrevPage();
         }
+
+        this.isScrolling = false;
     }
 
     private async gotoPrevPage(): Promise<void> {
-        if (this.isScrolling) {
-            return;
-        }
-
         const doGotoPrevChapter: boolean = this.currentPage === 1;
         const isSmoothScroll: boolean = this.isSmoothScroll;
 
@@ -119,7 +122,6 @@ export class ReaderApi {
             this.setSmoothScroll(false);
         }
 
-        this.isScrolling = true;
         this.rendition.prev().then( /* Do nothing */);
 
         // Wait for the scroll end event.
@@ -142,7 +144,11 @@ export class ReaderApi {
 
         // Restore the smooth scroll setting.
         this.setSmoothScroll(isSmoothScroll);
-        this.isScrolling = false;
+
+        // Re-apply the CSS changes if it is going to the previous chapter.
+        if (doGotoPrevChapter) {
+            this.applyCssChanges();
+        }
     }
 
     /**
@@ -150,22 +156,24 @@ export class ReaderApi {
      * @returns {Promise<void>}
      */
     async nextPage(): Promise<void> {
+        if (this.isScrolling) {
+            return;
+        }
+        this.isScrolling = true;
+
         if (this.isRtl) {
             await this.gotoPrevPage();
         } else {
             await this.gotoNextPage();
         }
+
+        this.isScrolling = false;
     }
 
     private async gotoNextPage(): Promise<void> {
-        if (this.isScrolling) {
-            return;
-        }
-
         const lastPage: number = this.totalPage - (this.isSinglePage ? 0 : 1);
         const doGotoNextChapter: boolean = this.currentPage === lastPage;
 
-        this.isScrolling = true;
         this.rendition.next().then( /* Do nothing */);
 
         await new Promise<void>(async (resolve) => {
@@ -185,7 +193,10 @@ export class ReaderApi {
             }
         });
 
-        this.isScrolling = false;
+        // Re-apply the CSS changes if it is going to the next chapter.
+        if (doGotoNextChapter) {
+            this.applyCssChanges();
+        }
     }
 
     /**
@@ -232,8 +243,10 @@ export class ReaderApi {
      */
     private applyCssChanges(): void {
         // Check if background color is set.
-        const backgroundColor: string = getComputedStyle(this.viewBodyElement).backgroundColor;
-        const isTransparent: boolean = backgroundColor === 'rgba(0, 0, 0, 0)' || backgroundColor === 'transparent';
+        const computedStyle = getComputedStyle(this.viewBodyElement);
+        const backgroundColor: string = computedStyle.backgroundColor;
+        const backgroundImage: string = computedStyle.backgroundImage;
+        const isTransparent: boolean = backgroundColor === 'rgba(0, 0, 0, 0)' || backgroundColor === 'transparent' || backgroundImage !== 'none';
         this.rendition.themes.default({
             'body': {
                 'color': isTransparent ? this.fontColor : 'inherit',

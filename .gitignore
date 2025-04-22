@@ -1,5 +1,5 @@
 node_modules
 dist
-src/book.epub
+src/*.epub
 .DS_Store
 .idea/**
