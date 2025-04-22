@@ -9,7 +9,6 @@ import "@af-utils/scrollend-polyfill";
 export class ReaderApi {
     public book: Book;
     public rendition: Rendition;
-    public isAtEnd: boolean = false;
     private isSmoothScroll: boolean = false;
     private isScrolling: boolean = false;
     private isRtl: Boolean = false;
@@ -47,13 +46,8 @@ export class ReaderApi {
         if (!!savedLocation) {
             this.book.locations.load(savedLocation as string);
         } else {
-            // Generate the locations
-            let promises: Promise<any>[] = [];
-            this.book.spine.each((section: Section) => {
-                promises.push(this.book.locations.process(section));
-            });
-            await Promise.all(promises);
-
+            CommunicationService.send('startGenerateLocation');
+            await this.book.locations.generate(1600);
             // Send the list of locations.
             CommunicationService.send('saveLocation', this.book.locations.save());
         }
@@ -80,11 +74,13 @@ export class ReaderApi {
 
     private syncState(location: any) {
         this.isRtl = this.rendition.settings.defaultDirection === 'rtl';
-        this.isAtEnd = location.atEnd ?? false;
 
         const breadcrumb: string = BreadcrumbUtils.get(this.book.navigation.toc, location.start.href);
         const avgPercentage: number = (location.start.percentage + location.end.percentage) / 2;
-        const startCfi: string = this.book.locations.cfiFromPercentage(avgPercentage);
+        // If the average percentage is 0, the renderer cannot get the correct percentage.
+        const startCfi: string = avgPercentage === 0 ?
+            location.start.cfi :
+            this.book.locations.cfiFromPercentage(avgPercentage);
         CommunicationService.send('setState', {
             startCfi: startCfi,
             breadcrumb: breadcrumb,
