@@ -46,10 +46,12 @@ export class ReaderApi {
         if (!!savedLocation) {
             this.book.locations.load(savedLocation as string);
         } else {
-            CommunicationService.send('startGenerateLocation');
-            await this.book.locations.generate(1600);
-            // Send the list of locations.
-            CommunicationService.send('saveLocation', this.book.locations.save());
+            // Generate locations asynchronously.
+            this.book.locations.generate(100).then(() => {
+                this.syncState(this.rendition.currentLocation());
+                // Send the list of locations.
+                CommunicationService.send('saveLocation', this.book.locations.save());
+            });
         }
 
         // Event listeners
@@ -76,13 +78,8 @@ export class ReaderApi {
         this.isRtl = this.rendition.settings.defaultDirection === 'rtl';
 
         const breadcrumb: string = BreadcrumbUtils.get(this.book.navigation.toc, location.start.href);
-        const avgPercentage: number = (location.start.percentage + location.end.percentage) / 2;
-        // If the average percentage is 0, the renderer cannot get the correct percentage.
-        const startCfi: string = avgPercentage === 0 ?
-            location.start.cfi :
-            this.book.locations.cfiFromPercentage(avgPercentage);
         CommunicationService.send('setState', {
-            startCfi: startCfi,
+            startCfi: location.start.cfi,
             breadcrumb: breadcrumb,
             chapterFileName: location.start.href,
             chapterCurrentPage: this.currentPage,
